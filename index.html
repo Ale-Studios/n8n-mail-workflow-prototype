@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N8N Mail WORKFLOW Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a control-room page. The stage draws the real workflow graph (29 nodes + the 3-node error workflow) and a camera
+   follows one signal through it, with narration and sound. Subtitles name each node and say what it does.
+   Below: a try-it panel and the plain list of what is needed. */
+:root {
+  --bg: #F1F5F6;
+  --surface: #FFFFFF;
+  --surface-2: #E6EDEF;
+  --ink: #12232B;
+  --ink-2: #485D66;
+  --line: #C3D0D5;
+  --accent: #17687F;
+  --on-accent: #FFFFFF;
+  --lead: #17835A;
+  --ask: #2860C4;
+  --inv: #6E45C2;
+  --urg: #CC3B3B;
+  --rev: #A86F00;
+  --ign: #66777F;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1A20; --surface: #15262E; --surface-2: #1C323B; --ink: #E5EEF1; --ink-2: #9CB0B9; --line: #2F4852;
+    --accent: #5CB9D6; --on-accent: #08171D;
+    --lead: #4CC38A; --ask: #6C9DF3; --inv: #A58AEF; --urg: #F26D6D; --rev: #E3A83B; --ign: #8FA2AB;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1A20; --surface: #15262E; --surface-2: #1C323B; --ink: #E5EEF1; --ink-2: #9CB0B9; --line: #2F4852;
+  --accent: #5CB9D6; --on-accent: #08171D;
+  --lead: #4CC38A; --ask: #6C9DF3; --inv: #A58AEF; --urg: #F26D6D; --rev: #E3A83B; --ign: #8FA2AB;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 28px; }
+.kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4.4vw, 46px); line-height: 1.08; margin: 0 0 12px; text-wrap: balance; max-width: 22ch; }
+.lead { margin: 0; max-width: 64ch; color: var(--ink-2); font-size: 18px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.15; margin: 0 0 6px; text-wrap: balance; }
+.sub { margin: 0 0 16px; color: var(--ink-2); max-width: 64ch; }
+
+.player { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.stagewrap { overflow-x: auto; background: var(--surface); }
+#stage { display: block; width: 100%; min-width: 640px; aspect-ratio: 1000 / 520; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 8px 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend svg { width: 26px; height: 16px; }
+.captionbar { border-top: 1px solid var(--line); padding: 14px 20px 4px; display: grid; gap: 4px; min-height: 150px; align-content: start; }
+.scene-title { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.nodename { font-family: var(--font-mono); font-weight: 500; font-size: 15px; margin: 2px 0 0; overflow-wrap: anywhere; }
+#caption { margin: 0; font-size: clamp(17px, 2vw, 20px); line-height: 1.45; max-width: 74ch; text-wrap: pretty; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 20px 8px; }
+.audiohint { margin: 0; padding: 0 20px 16px; font-size: 13px; color: var(--ink-2); }
+.btn {
+  appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: 14px; font-weight: 500;
+  border-radius: 9px; padding: 8px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 40px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible, .seg:focus-visible, .mailbtn:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); min-width: 118px; justify-content: center; }
+.btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.progress { display: flex; gap: 4px; flex: 1 1 260px; min-width: 200px; }
+.seg { flex: 1; appearance: none; border: 0; background: none; padding: 10px 0; cursor: pointer; }
+.seg i { display: block; height: 6px; border-radius: 3px; background: var(--line); transition: background .25s; }
+.seg.done i { background: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.seg.now i { background: var(--accent); }
+
+/* graph */
+.node rect.box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; transition: stroke .2s, fill .2s; }
+.node.ai rect.box { fill: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.node.write rect.box { stroke: var(--ink-2); stroke-width: 2; }
+.node.you rect.box { stroke-dasharray: 5 4; stroke: var(--ink-2); }
+.node .ttl { font-family: var(--font-display); font-weight: 600; font-size: 13px; fill: var(--ink); }
+.node .ty { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-2); }
+.node .ico { fill: none; stroke: var(--ink-2); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.node.hot rect.box { stroke: var(--accent); stroke-width: 3; fill: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.node.hot .ico { stroke: var(--accent); }
+.node.bad rect.box { stroke: var(--urg); stroke-width: 3; fill: color-mix(in srgb, var(--urg) 14%, var(--surface)); }
+.edge { fill: none; stroke: var(--line); stroke-width: 2; transition: stroke .2s; }
+.edge.dashed { stroke-dasharray: 5 5; }
+.edge.cat { stroke: color-mix(in srgb, var(--cat) 55%, var(--line)); }
+.edge.lit { stroke: var(--accent); }
+.edge.cat.lit { stroke: var(--cat); }
+.arrow { fill: var(--line); transition: fill .2s; }
+.arrow.lit { fill: var(--accent); }
+.arrow.cat { fill: color-mix(in srgb, var(--cat) 55%, var(--line)); }
+.arrow.cat.lit { fill: var(--cat); }
+.elabel { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .04em; fill: var(--cat); }
+#stage [data-id], #stage [data-g] { transition: opacity .35s; }
+#stage.focus [data-id]:not(.lit):not(.hot):not(.bad), #stage.focus [data-g]:not(.lit):not(.hot):not(.bad) { opacity: .16; }
+.region { font-family: var(--font-display); font-weight: 700; font-size: 22px; fill: var(--ink-2); }
+.regionbox { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 6; }
+.callout { font-family: var(--font-display); font-weight: 600; font-size: 14px; text-anchor: middle; }
+#token, .dot { opacity: 0; }
+#token rect { fill: var(--surface); stroke: var(--tokc, var(--accent)); stroke-width: 2.5; }
+#token path { fill: none; stroke: var(--tokc, var(--accent)); stroke-width: 2; }
+#tokLabel { font-family: var(--font-mono); font-size: 12px; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+
+/* try */
+.try { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
+.try.hint, .need.hint { box-shadow: 0 0 0 3px var(--accent); }
+.mails { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.mailbtn {
+  appearance: none; text-align: left; font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 11px 13px; cursor: pointer; display: grid; gap: 2px; min-width: 0;
+}
+.mailbtn:hover { border-color: var(--accent); }
+.mailbtn[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
+.mailbtn b { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.mailbtn span { font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.result { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.25fr); gap: 16px; align-items: start; }
+.result > * { min-width: 0; }
+.panel-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 6px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg); font-size: 14.5px; min-height: 108px; overflow-wrap: anywhere; }
+.card p { margin: 0 0 8px; }
+.card p:last-child { margin-bottom: 0; }
+.card dl { margin: 0 0 8px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; color: var(--ink-2); }
+.card dt { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.card dd { margin: 0; }
+.mid { align-self: center; text-align: center; display: grid; gap: 6px; justify-items: center; padding-top: 22px; }
+.catchip { font-family: var(--font-mono); font-size: 12px; font-weight: 500; padding: 4px 9px; border-radius: 999px; border: 1.5px solid var(--cat, var(--line)); color: var(--cat, var(--ink-2)); background: var(--surface); white-space: nowrap; }
+.arrowdown { color: var(--ink-2); font-size: 20px; line-height: 1; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); margin-bottom: 8px; }
+.tg { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; white-space: pre-line; font-size: 14px; }
+table.sheet { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.sheetwrap { overflow-x: auto; }
+table.sheet th, table.sheet td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; white-space: nowrap; }
+table.sheet th { font-family: var(--font-mono); font-weight: 500; font-size: 11px; background: var(--surface-2); color: var(--ink-2); }
+.rnote { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+.empty { color: var(--ink-2); }
+
+.need { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px 36px; }
+.need ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.need h3 { font-family: var(--font-display); font-size: 19px; margin: 0 0 10px; }
+.foot { font-size: 13px; color: var(--ink-2); max-width: 72ch; }
+@media (max-width: 760px) { .result { grid-template-columns: minmax(0, 1fr); } .mid { padding-top: 0; grid-auto-flow: column; justify-content: start; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+a { color: var(--accent); }
+.getit { margin: 14px 0 0; font-size: 15px; }
+.getit a { font-weight: 600; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="kicker">N8N Mail WORKFLOW Prototype</p>
+    <h1>An assistant for your inbox that prepares everything and never sends anything</h1>
+    <p class="lead">This is the real map of the workflow: every box is one step. Press Play and watch a signal travel through them one by one, with narration and sound, in about three minutes. Or pick an example email and follow it yourself.</p>
+    <p class="getit"><a href="https://github.com/Ale-Studios/n8n-mail-workflow-prototype">Get the free prototype on GitHub</a> &middot; free to use and change, not to sell &middot; prototype: read the status table in the README before relying on it</p>
+  </header>
+
+  <section class="player" aria-label="Interactive video">
+    <div class="stagewrap">
+      <svg id="stage" viewBox="-35 -213 2400 1248" role="img" aria-label="Map of the workflow: two triggers, a shared Company Profile, reading and classifying emails with Claude, six exit roads, the morning follow-up, the Monday summary and the error workflow.">
+        <g id="layer-static"></g>
+        <g id="layer-dyn"></g>
+        <g id="token"><rect x="-17" y="-11" width="34" height="22" rx="3"></rect><path d="M-17 -11 L0 3 L17 -11"></path><text id="tokLabel" x="0" y="-20" text-anchor="middle"></text></g>
+      </svg>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><svg viewBox="0 0 26 16"><rect x="1" y="1" width="24" height="14" rx="4" fill="color-mix(in srgb, var(--accent) 9%, var(--surface))" stroke="var(--line)" stroke-width="1.5"></rect></svg>Step that uses Claude</span>
+      <span><svg viewBox="0 0 26 16"><rect x="1" y="1" width="24" height="14" rx="4" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="2"></rect></svg>Writes to your account: draft, sheet or Telegram</span>
+      <span><svg viewBox="0 0 26 16"><rect x="1" y="1" width="24" height="14" rx="4" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="4 3"></rect></svg>You: the only one who can send</span>
+    </div>
+    <div class="captionbar">
+      <div class="scene-title" id="sceneTitle"></div>
+      <p class="nodename" id="nodeName" hidden></p>
+      <p id="caption"></p>
+    </div>
+    <div class="controls">
+      <button class="btn" id="prev" aria-label="Previous scene"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5L9 12l10 7z"></path></svg></button>
+      <button class="btn primary" id="play" aria-label="Play"><svg viewBox="0 0 24 24" id="playicon"><path d="M7 4l13 8-13 8z"></path></svg><span id="playtxt">Play</span></button>
+      <button class="btn" id="next" aria-label="Next scene"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"></path></svg></button>
+      <select class="btn" id="speed" aria-label="Speed">
+        <option value="0.75">Slow</option><option value="1" selected>Normal</option><option value="1.4">Fast</option><option value="2.2">Very fast</option>
+      </select>
+      <button class="btn" id="voice" aria-pressed="true" title="Reads every step aloud"><svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M6 11a6 6 0 0 0 12 0 M12 17v4"></path></svg><span>Narration</span></button>
+      <button class="btn" id="sound" aria-pressed="true" title="Sound effects"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z M16.5 8.5a5 5 0 0 1 0 7"></path></svg><span>Sound</span></button>
+      <div class="progress" id="progress" role="group" aria-label="Scenes"></div>
+    </div>
+    <p class="audiohint" id="audiohint">Narration and sound are on. They start when you press Play, and you can turn each one off.</p>
+  </section>
+
+  <section class="try" id="try" aria-labelledby="tryh">
+    <h2 id="tryh">Try it with an example email</h2>
+    <p class="sub">Pick an email: the signal goes through the same nodes as in the video, and below you see what you get. The examples are made up.</p>
+    <div class="mails" id="mails"></div>
+    <div class="result" aria-live="polite">
+      <div><p class="panel-label">The incoming email</p><div class="card" id="rmail"><span class="empty">Pick an email above.</span></div></div>
+      <div class="mid"><span class="arrowdown" aria-hidden="true">&#8594;</span><span class="catchip" id="rcat" hidden></span><span class="arrowdown" aria-hidden="true">&#8594;</span></div>
+      <div><p class="panel-label">What you get</p><div class="card" id="rout"><span class="empty">The result appears here.</span></div></div>
+    </div>
+    <p class="rnote" id="rnote"></p>
+  </section>
+
+  <section class="need" id="need" aria-labelledby="needh">
+    <div>
+      <h2 id="needh">What you need to get started</h2>
+      <p class="sub">These are the steps of the setup guide, in short.</p>
+      <ul>
+        <li><b>n8n, always on.</b> It is the program that runs the workflow. If it stops, emails wait.</li>
+        <li><b>A connected Gmail account.</b> It needs a free Google Cloud access, set up once: allow 20 to 30 minutes.</li>
+        <li><b>An Anthropic API key.</b> Pay as you go, with a monthly spending limit that you set yourself.</li>
+        <li><b>A Telegram bot and a Google Sheet.</b> The first for alerts, the second for invoices. Both are free.</li>
+        <li><b>A filled-in Company Profile.</b> Services, prices, hours, tone of voice and signature: this is where Claude takes its facts.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Good to know before you use it</h3>
+      <ul>
+        <li>It never sends email on its own. Every reply is a draft that you review.</li>
+        <li>Claude can be wrong. When its answer is unclear, the workflow tells you instead of ignoring the email.</li>
+        <li>Attachments are not read: an invoice that exists only as a PDF lands in the sheet with the status "needs_review".</li>
+        <li>The text of your emails is sent to Anthropic to be processed.</li>
+      </ul>
+    </div>
+  </section>
+
+  <p class="foot">All emails, names and figures on this page are made up. This is a free prototype. The video shows how the workflow is designed to behave; real results depend on your own emails and your Company Profile.</p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var $ = function (s) { return document.querySelector(s); };
+  var stage = $("#stage"), L = $("#layer-static"), D = $("#layer-dyn"), token = $("#token"), tokLabel = $("#tokLabel");
+  var REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var RATIO = 0.52;
+
+  function el(tag, attrs, parent, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  /* ---------- icons ---------- */
+  var ICON = {
+    mail: "M3 6h18v12H3z M3 7l9 7 9-7",
+    clock: "M12 4a8 8 0 1 0 .01 0z M12 8v4l3 2",
+    set: "M5 20V5h9v15 M14 9h5v11 M8 8h3 M8 12h3 M8 16h3",
+    code: "M9 6L3 12l6 6 M15 6l6 6-6 6",
+    branch: "M4 12h6 M10 12l6-6h4 M10 12h10 M10 12l6 6h4",
+    spark: "M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z",
+    pen: "M4 20l1-5L16 4l4 4L9 19z M14 6l4 4",
+    sheet: "M5 4h14v16H5z M5 9h14 M5 14h14 M11 4v16",
+    bell: "M6 17v-6a6 6 0 0 1 12 0v6l2 2H4z M10 21h4",
+    ban: "M12 4a8 8 0 1 0 .01 0z M6 6l12 12",
+    warn: "M12 3l10 18H2z M12 10v5 M12 18v.5",
+    person: "M12 4a4 4 0 1 0 .01 0z M4 21c0-4 3.5-6 8-6s8 2 8 6",
+    thread: "M4 5h16v10H9l-5 4z"
+  };
+
+  /* ---------- the real graph ---------- */
+  var COLX = [0, 210, 420, 630, 840, 1050, 1260, 1470, 1750, 1960, 2170];
+  var ROWH = 80, W = 160, H = 62;
+  var N = {};
+  function def(id, col, row, name, type, ico, grp, desc, kind, dy) {
+    N[id] = { id: id, x: COLX[col], y: row * ROWH + (dy || 0), name: name, type: type, ico: ico, g: grp, desc: desc, kind: kind || "" };
+  }
+  // g: M email flow, S shared, F follow-up, W weekly, E errors, Y you
+  def("GT", 0, 2, "Gmail Trigger - New Email", "Gmail Trigger", "mail", "M", "Every minute it checks your inbox for a new unread email. It skips promotions, social notifications and very large messages.");
+  def("CP", 1, 4, "Company Profile", "Set", "set", "S", "This is where you write your services, prices, opening hours, tone of voice and signature. It is the only form you have to fill in. It is where Claude gets the facts about your business.");
+  def("BP", 2, 4, "Build Profile Text", "Code", "code", "S", "It turns the profile into a block of text for Claude, with the rules: use only these facts, never invent a price, and ignore any instructions written inside an email. You never need to touch it.");
+  def("WT", 3, 4, "Which Trigger?", "IF", "branch", "S", "It works out where the signal came from: a new email, or the morning check. Then it sends the signal down the right branch.");
+  def("EX", 4, 2, "Extract Email Content", "Code", "code", "M", "It pulls out the sender, the subject, the text and the address to reply to. It also flags automated mail, such as newsletters and no-reply messages.");
+  def("CL", 5, 2, "Classify Email (Claude)", "HTTP Request", "spark", "M", "Claude reads the email and answers with a single word: its category. This is the only place where the artificial intelligence decides anything.", "ai");
+  def("PC", 6, 2, "Parse Classification", "Code", "code", "M", "It reads Claude's word. If it is not a valid category, the email is marked for review instead of being ignored. Automated mail never gets a reply.");
+  def("RT", 7, 2, "Route by Category", "Switch", "branch", "M", "It sorts the email onto one of six roads, one for each category.");
+  def("DL", 8, 0, "Draft Reply - Lead (Claude)", "HTTP Request", "spark", "M", "Claude writes the draft reply to a new customer, using only the facts in your Company Profile.", "ai");
+  def("CDL", 9, 0, "Create Draft - Lead", "Gmail", "pen", "M", "It saves the draft in Gmail, with the recipient and subject already filled in. It does not send it.", "write");
+  def("DQ", 8, 1, "Draft Reply - Client Question (Claude)", "HTTP Request", "spark", "M", "Claude writes the draft reply to a question from an existing customer. Where it does not know something, it leaves a placeholder.", "ai");
+  def("CDQ", 9, 1, "Create Draft - Client Question", "Gmail", "pen", "M", "It saves the draft in Gmail, ready for you to review. It does not send it.", "write");
+  def("EI", 8, 2, "Extract Invoice Details (Claude)", "HTTP Request", "spark", "M", "Claude extracts the amount, the currency and the due date from the invoice.", "ai");
+  def("PI", 9, 2, "Parse Invoice JSON", "Code", "code", "M", "It reads Claude's answer. If the amount is missing, for example because the invoice is only a PDF, the row is marked as needing review.");
+  def("LI", 10, 2, "Log Invoice to Sheet", "Google Sheets", "sheet", "M", "It adds a row to your Google Sheet of invoices.", "write");
+  def("FA", 8, 3, "Format Alert", "Code", "code", "M", "It prepares the alert message: it shortens the text and protects special characters, so Telegram never rejects it.");
+  def("SU", 9, 3, "Send Urgent Alert", "Telegram", "bell", "M", "It sends you the alert on Telegram: red for urgent emails, yellow for emails that Claude could not classify.", "write");
+  def("IG", 8, 4, "Ignore - No Action", "No Operation", "ban", "M", "No draft and no alert. The email stays in your inbox, exactly as before.");
+  def("TU", 10, 0, "You", "", "person", "Y", "The drafts wait for you in the Drafts folder of Gmail. You read them, fix them if needed, and press Send only if they are right. If you do nothing, nothing is sent.", "you", 40);
+  def("DT", 0, 6, "Daily Trigger - Follow-up Check", "Schedule Trigger", "clock", "F", "Every morning at nine o'clock it starts the check for follow-ups.");
+  def("SS", 4, 6, "Search Sent Emails", "Gmail", "mail", "F", "It looks for the emails you sent at least three days ago. You can change the number of days in the Company Profile.");
+  def("GH", 5, 6, "Get Thread", "Gmail", "thread", "F", "It downloads the whole conversation for each email found, not just your own message.");
+  def("FF", 6, 6, "Filter Needs Follow-up", "Code", "code", "F", "It keeps only the conversations where the last message is yours, old enough, with no draft already waiting, and never followed up before.");
+  def("DF", 7, 6, "Draft Follow-up Reminder (Claude)", "HTTP Request", "spark", "F", "Claude writes a short, polite reminder, without pushing.", "ai");
+  def("CDF", 8, 6, "Create Draft - Follow-up", "Gmail", "pen", "F", "It saves the reminder as a draft in Gmail, with the recipient already filled in. It does not send it.", "write");
+  def("RF", 9, 6, "Remember Follow-up", "Code", "code", "F", "It remembers this conversation, so it will never get a second reminder, even if you delete the draft.");
+  def("TU2", 8, 7, "You", "", "person", "Y", "The reminder is only a draft too. You read it, and you decide whether to send it.", "you");
+  def("WK", 0, 8, "Weekly Trigger - Monday 8AM", "Schedule Trigger", "clock", "W", "Every Monday at eight in the morning it starts the weekly summary.");
+  def("RIT", 1, 8, "Read Invoice Tracker", "Google Sheets", "sheet", "W", "It reads all the rows of your invoice sheet.");
+  def("CWD", 2, 8, "Compose Weekly Digest", "Code", "code", "W", "It keeps only the invoices that are still open, including the ones that need review, and writes the summary.");
+  def("SD", 3, 8, "Send Digest", "Telegram", "bell", "W", "It sends you the summary on Telegram.", "write");
+  def("ET", 0, 10, "Error Trigger", "Error Trigger", "warn", "E", "It wakes up when any other node fails: an invalid key, no credit left, an expired Google login.");
+  def("FE", 1, 10, "Format Error", "Code", "code", "E", "It writes the message: which step stopped, what the problem is, and the most common causes.");
+  def("SE", 2, 10, "Send Error Alert", "Telegram", "bell", "E", "It sends you the alert on Telegram. So no failure stays silent.", "write");
+
+  // edges: [from, to, midOffset, label, cat, dashed, vertical]
+  var EDGES = [
+    ["GT", "CP", 25], ["DT", "CP", 25], ["CP", "BP"], ["BP", "WT"], ["WT", "EX", 25], ["WT", "SS", 25],
+    ["EX", "CL"], ["CL", "PC"], ["PC", "RT"],
+    ["RT", "DL", 30, "LEAD", "lead"], ["RT", "DQ", 30, "QUESTION", "ask"], ["RT", "EI", 30, "INVOICE", "inv"],
+    ["RT", "FA", 30, "URGENT", "urg"], ["RT", "FA#2", 62, "UNSURE", "rev"], ["RT", "IG", 30, "IGNORE", "ign"],
+    ["DL", "CDL"], ["DQ", "CDQ"], ["EI", "PI"], ["PI", "LI"], ["FA", "SU"],
+    ["CDL", "TU", 25, null, null, true], ["CDQ", "TU", 25, null, null, true],
+    ["SS", "GH"], ["GH", "FF"], ["FF", "DF"], ["DF", "CDF"], ["CDF", "RF"], ["CDF", "TU2", null, null, null, true, true],
+    ["WK", "RIT"], ["RIT", "CWD"], ["CWD", "SD"], ["ET", "FE"], ["FE", "SE"]
+  ];
+  var EP = {};
+  function base(id) { return id.split("#")[0]; }
+  function edgePts(e) {
+    var a = N[e[0]], b = N[base(e[1])], pts;
+    if (e[6]) return [[a.x + W / 2, a.y + H], [b.x + W / 2, b.y]];
+    var s = [a.x + W, a.y + H / 2], t = [b.x, b.y + H / 2];
+    var mx = s[0] + (e[2] != null ? e[2] : (t[0] - s[0]) / 2);
+    pts = [s];
+    if (Math.abs(s[1] - t[1]) > 0.5) { pts.push([mx, s[1]], [mx, t[1]]); }
+    pts.push(t);
+    return pts;
+  }
+
+  /* ---------- draw ---------- */
+  function wrapTitle(name) {
+    var words = name.split(" "), lines = [], cur = "";
+    words.forEach(function (w) {
+      if ((cur + " " + w).trim().length > 21 && cur) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim();
+    });
+    if (cur) lines.push(cur);
+    return lines.slice(0, 2);
+  }
+  var reg = el("g", {}, L);
+  el("text", { x: 840, y: -22, "class": "region" }, reg, "Every new email");
+  el("text", { x: 840, y: 452, "class": "region" }, reg, "Every morning at 9");
+  el("text", { x: 0, y: 612, "class": "region" }, reg, "Every Monday at 8");
+  el("text", { x: 0, y: 772, "class": "region" }, reg, "If something breaks (a second workflow)");
+  el("text", { x: 0, y: 134, "class": "region" }, reg, "Two starts, one shared profile");
+  el("rect", { x: -16, y: 790, width: 620, height: 98, rx: 14, "class": "regionbox" }, reg);
+
+  EDGES.forEach(function (e) {
+    var key = e[0] + ">" + e[1], pts = edgePts(e); EP[key] = pts;
+    var d = "M" + pts.map(function (p) { return p.join(" "); }).join(" L");
+    var cls = "edge" + (e[4] ? " cat" : "") + (e[5] ? " dashed" : "");
+    var p = el("path", { d: d, "class": cls, "data-id": "e:" + key, "data-g": N[e[0]].g }, L);
+    if (e[4]) p.style.setProperty("--cat", "var(--" + e[4] + ")");
+    var t = pts[pts.length - 1], ah = e[6] ? [[t[0], t[1]], [t[0] - 5, t[1] - 9], [t[0] + 5, t[1] - 9]] : [[t[0], t[1]], [t[0] - 9, t[1] - 5], [t[0] - 9, t[1] + 5]];
+    var a = el("polygon", { points: ah.map(function (q) { return q.join(","); }).join(" "), "class": "arrow" + (e[4] ? " cat" : ""), "data-id": "e:" + key + ":a", "data-g": N[e[0]].g }, L);
+    if (e[4]) a.style.setProperty("--cat", "var(--" + e[4] + ")");
+    if (e[3]) {
+      var lx = pts[pts.length - 2][0] + 8, ly = e[1] === "FA#2" ? t[1] + 17 : t[1] - 7;
+      var lb = el("text", { x: lx, y: ly, "class": "elabel", "data-id": "e:" + key + ":l", "data-g": N[e[0]].g }, L, e[3]);
+      lb.style.setProperty("--cat", "var(--" + e[4] + ")");
+    }
+  });
+  Object.keys(N).forEach(function (id) {
+    var n = N[id];
+    var g = el("g", { "class": "node " + n.kind, "data-id": "n:" + id, "data-g": n.g }, L);
+    el("rect", { x: n.x, y: n.y, width: W, height: H, rx: 10, "class": "box" }, g);
+    var ic = el("g", { transform: "translate(" + (n.x + W - 28) + "," + (n.y + 7) + ") scale(.8)" }, g);
+    el("path", { d: ICON[n.ico], "class": "ico" }, ic);
+    var lines = wrapTitle(n.name), y0 = lines.length === 1 ? n.y + 28 : n.y + 22;
+    lines.forEach(function (ln, k) { el("text", { x: n.x + 12, y: y0 + k * 16, "class": "ttl" }, g, ln); });
+    if (n.type) el("text", { x: n.x + 12, y: n.y + H - 7, "class": "ty" }, g, n.type);
+  });
+
+  /* ---------- lighting ---------- */
+  function lit(ids, groups) {
+    var any = (ids && ids.length) || (groups && groups.length);
+    stage.classList.toggle("focus", !!any);
+    Array.prototype.forEach.call(stage.querySelectorAll("[data-id]"), function (e) {
+      var id = e.getAttribute("data-id"), g = e.getAttribute("data-g");
+      var on = (ids && ids.indexOf(id) >= 0) || (groups && groups.indexOf(g) >= 0);
+      if (!on && ids) { var m = id.match(/^(e:.+?)(:a|:l)$/); if (m && ids.indexOf(m[1]) >= 0) on = true; }
+      e.classList.toggle("lit", !!on);
+    });
+  }
+  function edgeKey(a, b) { var k = base(a) + ">" + b; return EP[k] ? k : null; }
+  function pathIds(path) {
+    var ids = [];
+    path.forEach(function (s, i) { ids.push("n:" + base(s)); if (i > 0) ids.push("e:" + edgeKey(path[i - 1], s)); });
+    return ids;
+  }
+  function hot(id, cls) { var e = stage.querySelector('[data-id="n:' + id + '"]'); if (e) e.classList.add(cls || "hot"); }
+  function clearHot() { Array.prototype.forEach.call(stage.querySelectorAll(".hot,.bad"), function (e) { e.classList.remove("hot"); e.classList.remove("bad"); }); }
+  function clearDyn() { while (D.firstChild) D.removeChild(D.firstChild); }
+  function callout(id, text, color, dy) {
+    var n = N[id];
+    var t = el("text", { x: n.x + W / 2, y: n.y + H + (dy || 20), "class": "callout" }, D, text);
+    t.style.fill = color || "var(--accent)";
+  }
+  function hideTok() { token.style.opacity = 0; tokLabel.textContent = ""; }
+  function resetVisuals() { lit([], []); clearHot(); clearDyn(); hideTok(); }
+  function resetVisualsKeep() { clearHot(); clearDyn(); hideTok(); }
+
+  /* ---------- sound (synthesized, no files) ---------- */
+  var AC = null, master = null, soundOn = true;
+  function ac() {
+    try {
+      if (!AC) {
+        var C = window.AudioContext || window.webkitAudioContext;
+        if (!C) return null;
+        AC = new C(); master = AC.createGain(); master.gain.value = 0.55; master.connect(AC.destination);
+      }
+      if (AC.state === "suspended") AC.resume();
+      return AC;
+    } catch (e) { return null; }
+  }
+  function tone(f, t, d, type, v, slideTo) {
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || "sine"; o.frequency.setValueAtTime(f, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + d);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v || 0.08, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + d + 0.03);
+  }
+  function whoosh(t, d, v) {
+    var n = Math.floor(AC.sampleRate * d), buf = AC.createBuffer(1, n, AC.sampleRate), data = buf.getChannelData(0), i;
+    for (i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+    var s = AC.createBufferSource(); s.buffer = buf;
+    var f = AC.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 1.1;
+    f.frequency.setValueAtTime(350, t); f.frequency.exponentialRampToValueAtTime(2600, t + d);
+    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + d * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t);
+  }
+  function sfx(name) {
+    if (!soundOn || paused) return;
+    var a = ac(); if (!a) return;
+    var t = a.currentTime + 0.01, i;
+    switch (name) {
+      case "whoosh": whoosh(t, 0.5, 0.05); break;
+      case "arrive": tone(620, t, 0.12, "sine", 0.07); break;
+      case "ai": tone(523, t, 0.1, "triangle", 0.07); tone(784, t + 0.09, 0.14, "triangle", 0.07); tone(1047, t + 0.18, 0.22, "triangle", 0.05); break;
+      case "write": tone(220, t, 0.18, "sine", 0.1); tone(330, t + 0.06, 0.22, "sine", 0.07); break;
+      case "route": for (i = 0; i < 4; i++) tone(820 + i * 130, t + i * 0.06, 0.05, "square", 0.03); break;
+      case "urgent": for (i = 0; i < 2; i++) { tone(880, t + i * 0.3, 0.12, "square", 0.045); tone(660, t + i * 0.3 + 0.14, 0.14, "square", 0.045); } break;
+      case "review": tone(494, t, 0.2, "triangle", 0.07); tone(494, t + 0.26, 0.2, "triangle", 0.07); break;
+      case "ignore": tone(190, t, 0.3, "sine", 0.06, 120); break;
+      case "you": tone(523, t, 0.7, "sine", 0.06); tone(659, t + 0.04, 0.7, "sine", 0.05); tone(784, t + 0.08, 0.7, "sine", 0.05); break;
+      case "error": tone(150, t, 0.5, "sawtooth", 0.06, 90); tone(160, t + 0.02, 0.5, "square", 0.025, 95); break;
+      case "start": tone(392, t, 0.12, "triangle", 0.06); tone(523, t + 0.1, 0.12, "triangle", 0.06); tone(659, t + 0.2, 0.2, "triangle", 0.06); break;
+      case "done": tone(659, t, 0.14, "triangle", 0.06); tone(523, t + 0.12, 0.14, "triangle", 0.06); tone(392, t + 0.24, 0.3, "triangle", 0.06); break;
+    }
+  }
+  function nodeSound(id, variant) {
+    var k = N[id].kind;
+    if (id === "RT") return sfx("route");
+    if (id === "SU") return sfx(variant === "rev" ? "review" : "urgent");
+    if (id === "IG") return sfx("ignore");
+    if (id === "ET") return sfx("error");
+    if (k === "you") return sfx("you");
+    if (k === "ai") return sfx("ai");
+    if (k === "write") return sfx("write");
+    sfx("arrive");
+  }
+
+  /* ---------- narration ---------- */
+  var voiceOn = true, VOICE = null, hasSpeech = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
+  function pickVoice() {
+    if (!hasSpeech) return null;
+    var vs = speechSynthesis.getVoices() || [];
+    var en = vs.filter(function (v) { return /^en[-_]/i.test(v.lang); });
+    var score = function (v) {
+      var s = 0;
+      if (/natural|neural|online/i.test(v.name)) s += 5;
+      if (/google us english|samantha|aria|jenny|guy|daniel|serena|libby|ryan/i.test(v.name)) s += 3;
+      if (/en[-_]US/i.test(v.lang)) s += 2;
+      if (/en[-_]GB/i.test(v.lang)) s += 1;
+      return s;
+    };
+    en.sort(function (a, b) { return score(b) - score(a); });
+    return en[0] || null;
+  }
+  if (hasSpeech) { VOICE = pickVoice(); speechSynthesis.onvoiceschanged = function () { VOICE = pickVoice(); }; }
+  function stopSpeech() { try { if (hasSpeech) speechSynthesis.cancel(); } catch (e) {} }
+  function speak(text) {
+    if (!voiceOn || !hasSpeech || !text) return;
+    try {
+      speechSynthesis.cancel();
+      var parts = text.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [text];   // short chunks avoid cut-offs in long utterances
+      parts.forEach(function (p) {
+        var u = new SpeechSynthesisUtterance(p.trim());
+        u.lang = VOICE ? VOICE.lang : "en-US"; if (VOICE) u.voice = VOICE;
+        u.rate = Math.min(speed, 1.5) * 0.98;
+        speechSynthesis.speak(u);
+      });
+    } catch (e) {}
+  }
+  async function untilSpoken(tok) {
+    if (!voiceOn || !hasSpeech) return;
+    var guard = 0;
+    while ((speechSynthesis.speaking || speechSynthesis.pending) && guard < 900) { await wait(100, tok); guard++; }
+  }
+
+  /* ---------- engine ---------- */
+  var CANCEL = { cancelled: true };
+  var runTok = 0, paused = true, speed = 1, videoActive = true, sceneIdx = 0, finished = false, started = false;
+  var cam = { cx: 1165, cy: 411, w: 2400 };
+  function applyCam() {
+    var h = cam.w * RATIO;
+    stage.setAttribute("viewBox", (cam.cx - cam.w / 2) + " " + (cam.cy - h / 2) + " " + cam.w + " " + h);
+  }
+  function camW() { return stage.getBoundingClientRect().width < 900 ? 800 : 1200; }
+  function frame() { return new Promise(function (r) { requestAnimationFrame(r); }); }
+  async function wait(ms, tok) {
+    var t = 0, last = performance.now();
+    while (t < ms) {
+      await frame();
+      if (tok !== runTok) throw CANCEL;
+      var now = performance.now();
+      if (!paused) t += (now - last) * speed;
+      last = now;
+    }
+  }
+  async function tween(ms, tok, fn) {
+    var dur = REDUCED ? 16 : ms, t = 0, last = performance.now();
+    while (true) {
+      if (tok !== runTok) throw CANCEL;
+      var k = Math.min(1, t / dur), e = k * k * (3 - 2 * k);
+      fn(e);
+      if (k >= 1) return;
+      await frame();
+      var now = performance.now();
+      if (!paused) t += (now - last) * speed;
+      last = now;
+    }
+  }
+  function camTo(cx, cy, w, ms, tok) {
+    var a = { cx: cam.cx, cy: cam.cy, w: cam.w };
+    return tween(ms, tok, function (e) { cam.cx = a.cx + (cx - a.cx) * e; cam.cy = a.cy + (cy - a.cy) * e; cam.w = a.w + (w - a.w) * e; applyCam(); });
+  }
+  function overview(ms, tok) { return camTo(1165, 411, 2400, ms, tok); }
+  function nodeBox(ids) {
+    var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    ids.forEach(function (id) { var n = N[base(id)]; x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + W); y1 = Math.max(y1, n.y + H); });
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
+  function visibleIn(b) {
+    var h = cam.w * RATIO, m = 0.08;
+    return b.x0 > cam.cx - cam.w / 2 + cam.w * m && b.x1 < cam.cx + cam.w / 2 - cam.w * m && b.y0 > cam.cy - h / 2 + h * m && b.y1 < cam.cy + h / 2 - h * m;
+  }
+  function ensureVisible(ids, ms, tok) {
+    var b = nodeBox(ids);
+    if (cam.w > 1500 || visibleIn(b)) return Promise.resolve();
+    return camTo((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, camW(), ms, tok);
+  }
+  function center(id) { var n = N[base(id)]; return [n.x + W / 2, n.y + H / 2]; }
+  function placeTok(id, color, label) {
+    var c = center(id);
+    token.setAttribute("transform", "translate(" + c[0] + "," + c[1] + ")");
+    token.style.opacity = 1; token.style.setProperty("--tokc", color || "var(--accent)");
+    if (label != null) tokLabel.textContent = label;
+  }
+  async function moveAlong(setPos, pts, ms, tok) {
+    var seg = [], total = 0, i;
+    for (i = 1; i < pts.length; i++) { var l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(l); total += l; }
+    await tween(ms, tok, function (e) {
+      var d = e * total, p = pts[pts.length - 1];
+      for (var j = 0; j < seg.length; j++) {
+        if (d <= seg[j]) { var f = seg[j] ? d / seg[j] : 0; p = [pts[j][0] + (pts[j + 1][0] - pts[j][0]) * f, pts[j][1] + (pts[j + 1][1] - pts[j][1]) * f]; break; }
+        d -= seg[j];
+      }
+      setPos(p);
+    });
+  }
+  var setTokPos = function (p) { token.setAttribute("transform", "translate(" + p[0] + "," + p[1] + ")"); };
+  async function travel(a, b, tok) {
+    var k = edgeKey(a, b), ids = [a, b];
+    if (k) {
+      var pts = [center(a)].concat(EP[k]).concat([center(b)]);
+      sfx("whoosh");
+      await Promise.all([ensureVisible(ids, 700, tok), moveAlong(setTokPos, pts, 900, tok)]);
+    } else {
+      token.style.opacity = 0;
+      await ensureVisible(ids, 700, tok);
+      placeTok(b);
+    }
+  }
+
+  /* ---------- captions ---------- */
+  var tn = $("#nodeName");
+  function setScene(title, text) { $("#sceneTitle").textContent = title; tn.hidden = true; $("#caption").textContent = text; }
+  function setNodeCaption(title, id) { $("#sceneTitle").textContent = title; tn.hidden = false; tn.textContent = N[base(id)].name; $("#caption").textContent = N[base(id)].desc; }
+  var readMs = function (s, min) { return Math.max(min || 1800, s.length * 28); };
+
+  async function walk(path, tok, o) {
+    o = o || {};
+    var variant = path.indexOf("FA#2") >= 0 ? "rev" : (path.indexOf("FA") >= 0 ? "urg" : "");
+    var first = base(path[0]);
+    await ensureVisible([first], 700, tok);
+    placeTok(first, o.color, o.label); hot(first);
+    lit(pathIds(path), []);
+    for (var i = 0; i < path.length; i++) {
+      var id = base(path[i]);
+      if (i > 0) { await travel(base(path[i - 1]), path[i], tok); clearHot(); hot(id); }
+      nodeSound(id, variant);
+      if (o.title) setNodeCaption(o.title + (o.count ? " · step " + (i + 1) + " of " + path.length : ""), id);
+      if (o.onNode) o.onNode(id, i);
+      if (!o.quick) { speak(N[id].desc); await wait(readMs(N[id].desc, o.min), tok); await untilSpoken(tok); }
+      else await wait(o.quick, tok);
+    }
+  }
+
+  /* ---------- samples ---------- */
+  var COMMON = ["GT", "CP", "BP", "WT", "EX", "CL", "PC", "RT"];
+  var MAILS = [
+    { key: "lead", cat: "lead", branch: ["DL", "CDL", "TU"], word: "LEAD", from: "Emma Carter", addr: "emma.carter@example.com", subj: "Quote request",
+      body: "Hi, I'd like a quote to redesign my business website. When can we talk?",
+      res: "draft", draft: { to: "emma.carter@example.com", subj: "Re: Quote request",
+        text: ["Hi Emma,", "Thanks for getting in touch. A website redesign starts at $1,500. Could we set up a 20-minute call this week?", "Alex Morgan, Morgan Studio"] },
+      note: "Prices, tone and signature come from your Company Profile (an example here). The draft stays in Gmail until you press Send." },
+    { key: "ask", cat: "ask", branch: ["DQ", "CDQ", "TU"], word: "CLIENT_QUESTION", from: "Marcus Hill", addr: "marcus.hill@example.com", subj: "Delivery question",
+      body: "Hi, where are we with the artwork? When will you send it?",
+      res: "draft", draft: { to: "marcus.hill@example.com", subj: "Re: Delivery question",
+        text: ["Hi Marcus,", "I'll send the artwork as soon as it's ready. The delivery date is [DATE TO CONFIRM].", "Alex Morgan, Morgan Studio"] },
+      note: "Where Claude does not know something it leaves a [PLACEHOLDER] instead of inventing it. You fill it in before sending." },
+    { key: "inv", cat: "inv", branch: ["EI", "PI", "LI"], word: "INVOICE", from: "Northwind Supplies", addr: "billing@example.com", subj: "Invoice #482",
+      body: "Please find invoice #482 for 250.00 USD, due 2026-11-15.",
+      res: "sheet", note: "The workflow reads the text of the email. If the amount is only in a PDF attachment, the row is saved with the status \"needs_review\"." },
+    { key: "urg", cat: "urg", branch: ["FA", "SU"], word: "URGENT", from: "Dan Ops", addr: "dan@example.com", subj: "Website is down",
+      body: "Since this morning the site shows a 500 error and customers cannot place orders.",
+      res: "tg", tg: "🔴 Urgent email\nFrom: Dan Ops <dan@example.com>\nSubject: Website is down\n\nSince this morning the site shows a 500 error and customers cannot place orders.",
+      note: "The alert reaches you on Telegram right away, with the sender, the subject and the start of the text." },
+    { key: "rev", cat: "rev", branch: ["FA#2", "SU"], word: "unclear answer", from: "Someone", addr: "q@example.com", subj: "hmm",
+      body: "ok so see you then, let me know about that thing",
+      res: "tg", tg: "🟡 Email to review (could not be classified)\nFrom: Someone <q@example.com>\nSubject: hmm\n\nok so see you then, let me know about that thing",
+      note: "If Claude does not answer with a clear category, the email is not ignored: you get an alert and you decide." },
+    { key: "ign", cat: "ign", branch: ["IG"], word: "IGNORE", from: "Monthly Digest", addr: "no-reply@example.com", subj: "October news",
+      body: "Check out this month's offers! To stop receiving these emails, unsubscribe.",
+      res: "none", note: "Newsletters and automated messages never get a drafted reply. The email stays in your inbox as before." }
+  ];
+  var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+  function mailHtml(m) { return "<dl><dt>From</dt><dd>" + esc(m.from) + " &lt;" + esc(m.addr) + "&gt;</dd><dt>Subject</dt><dd>" + esc(m.subj) + "</dd></dl><p>" + esc(m.body) + "</p>"; }
+  function resultHtml(m) {
+    if (m.res === "draft") {
+      return "<span class=\"pill\">Draft, not sent</span><dl><dt>To</dt><dd>" + esc(m.draft.to) + "</dd><dt>Subject</dt><dd>" + esc(m.draft.subj) + "</dd></dl>" +
+        m.draft.text.map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("");
+    }
+    if (m.res === "sheet") {
+      return "<span class=\"pill\">New row in the Invoices sheet</span><div class=\"sheetwrap\"><table class=\"sheet\"><tr><th>from</th><th>subject</th><th>amount</th><th>currency</th><th>due_date</th><th>status</th></tr>" +
+        "<tr><td>Northwind Supplies</td><td>Invoice #482</td><td>250.00</td><td>USD</td><td>2026-11-15</td><td>pending</td></tr></table></div>";
+    }
+    if (m.res === "tg") return "<span class=\"pill\">Message on Telegram</span><div class=\"tg\">" + esc(m.tg) + "</div>";
+    return "<span class=\"pill\">No action</span><p>No draft and no alert.</p>";
+  }
+  var mailsBox = $("#mails");
+  MAILS.forEach(function (m, k) {
+    var b = document.createElement("button");
+    b.className = "mailbtn"; b.type = "button"; b.id = "mail-" + m.key; b.setAttribute("aria-pressed", "false");
+    b.innerHTML = "<b>" + esc(m.subj) + "</b><span>" + esc(m.from) + "</span>";
+    b.addEventListener("click", function () { unlock(); tryMail(k); });
+    mailsBox.appendChild(b);
+  });
+  function setPanel(k, step) {
+    var m = MAILS[k];
+    Array.prototype.forEach.call(mailsBox.children, function (b, i) { b.setAttribute("aria-pressed", i === k ? "true" : "false"); });
+    $("#rmail").innerHTML = mailHtml(m);
+    var chip = $("#rcat");
+    if (step >= 2) { chip.hidden = false; chip.textContent = m.word; chip.style.setProperty("--cat", "var(--" + m.cat + ")"); } else chip.hidden = true;
+    $("#rout").innerHTML = step >= 3 ? resultHtml(m) : "<span class=\"empty\">On its way…</span>";
+    $("#rnote").textContent = step >= 3 ? m.note : "";
+  }
+  function tokenLabel(m) { return m.subj.length > 24 ? m.subj.slice(0, 23) + "…" : m.subj; }
+
+  async function tryMail(k) {
+    var m = MAILS[k], tok = ++runTok;
+    videoActive = false; paused = false; started = true; stopSpeech(); updatePlayBtn();
+    resetVisuals(); setPanel(k, 1);
+    try {
+      var col = "var(--" + m.cat + ")", path = COMMON.concat(m.branch);
+      await walk(path, tok, {
+        label: tokenLabel(m), quick: 380, title: "Try it yourself", count: true,
+        onNode: function (id, i) {
+          if (id === "CL") { setPanel(k, 2); token.style.setProperty("--tokc", col); callout("CL", m.word, col); }
+          if (i === path.length - 1) setPanel(k, 3);
+        }
+      });
+      speak(m.note);
+      await wait(600, tok);
+    } catch (e) { if (e !== CANCEL) throw e; }
+  }
+
+  /* ---------- scenes ---------- */
+  var SCENES = [
+    { title: "What it is",
+      text: "N8N Mail WORKFLOW Prototype is an automatic assistant for your Gmail inbox. It reads incoming email, works out what each message is about, and prepares the repetitive work: draft replies, an invoice log, and alerts for urgent messages. This is its real map. Every box is one step, and nothing is ever sent without you.",
+      run: async function (tok) {
+        speak(this.text);
+        await overview(900, tok);
+        lit([], ["M", "S"]); await wait(2600, tok);
+        lit([], ["F", "S"]); await wait(2200, tok);
+        lit([], ["W"]); await wait(2000, tok);
+        lit([], ["E"]); await wait(2000, tok);
+        lit(["n:TU", "n:CDL", "n:CDQ", "n:CDF", "n:TU2"], []); await wait(2200, tok);
+        await untilSpoken(tok);
+      } },
+    { title: "An email arrives",
+      text: "Let's follow one email: a potential customer asks for a quote. The signal starts at the first box on the left.",
+      run: async function (tok) {
+        var path = COMMON.concat(["DL", "CDL", "TU"]);
+        lit(pathIds(path), []); setScene(this.title, this.text); speak(this.text);
+        await camTo(N.GT.x + 560, N.GT.y + 120, camW(), 1100, tok); await wait(1200, tok); await untilSpoken(tok);
+        await walk(path, tok, { label: "Quote request", title: "An email arrives", count: true,
+          onNode: function (id) {
+            if (id === "PC") { token.style.setProperty("--tokc", "var(--lead)"); callout("CL", "answer: LEAD", "var(--lead)"); }
+          } });
+      } },
+    { title: "The other roads",
+      text: "After sorting, each email takes a different road depending on its category. The signal goes back to Route by Category and walks the remaining roads, one by one.",
+      run: async function (tok) {
+        setScene(this.title, this.text); speak(this.text);
+        lit(["n:RT"], ["M"]); clearHot(); hideTok();
+        await camTo(N.RT.x + 380, N.RT.y + 40, camW(), 1100, tok); await wait(1200, tok); await untilSpoken(tok);
+        var branches = [
+          { p: ["RT", "DQ", "CDQ", "TU"], c: "var(--ask)", l: "Delivery question" },
+          { p: ["RT", "EI", "PI", "LI"], c: "var(--inv)", l: "Invoice #482" },
+          { p: ["RT", "FA", "SU"], c: "var(--urg)", l: "Website is down" },
+          { p: ["RT", "FA#2", "SU"], c: "var(--rev)", l: "hmm" },
+          { p: ["RT", "IG"], c: "var(--ign)", l: "October news" }
+        ];
+        for (var i = 0; i < branches.length; i++) {
+          clearHot(); clearDyn();
+          await walk(branches[i].p, tok, { color: branches[i].c, label: branches[i].l, title: "The other roads", count: false, min: 1500 });
+        }
+      } },
+    { title: "The morning follow-up",
+      text: "Every morning a second signal starts, this time from a clock. It passes through the same Company Profile, then takes the lower branch to nudge the emails you sent that nobody answered.",
+      run: async function (tok) {
+        setScene(this.title, this.text); speak(this.text); resetVisualsKeep();
+        var path = ["DT", "CP", "BP", "WT", "SS", "GH", "FF", "DF", "CDF", "RF"];
+        lit(pathIds(path).concat(["n:TU2", "e:CDF>TU2"]), []);
+        await camTo(N.DT.x + 560, N.DT.y - 120, camW(), 1100, tok); await wait(1200, tok); await untilSpoken(tok);
+        await walk(path, tok, { color: "var(--accent)", label: "9:00 am", title: "The morning follow-up", count: true });
+        hot("TU2"); setNodeCaption("The morning follow-up", "TU2"); nodeSound("TU2"); speak(N.TU2.desc);
+        await ensureVisible(["CDF", "TU2"], 700, tok);
+        await wait(readMs(N.TU2.desc), tok); await untilSpoken(tok);
+      } },
+    { title: "The Monday summary",
+      text: "A third signal starts every Monday morning. It is the shortest: it reads the invoice sheet and sends you a summary.",
+      run: async function (tok) {
+        setScene(this.title, this.text); speak(this.text); resetVisualsKeep();
+        var path = ["WK", "RIT", "CWD", "SD"];
+        lit(pathIds(path), []);
+        await camTo(N.WK.x + 520, N.WK.y, camW(), 1100, tok); await wait(1000, tok); await untilSpoken(tok);
+        await walk(path, tok, { color: "var(--inv)", label: "Monday 8:00", title: "The Monday summary", count: true });
+      } },
+    { title: "When something breaks",
+      text: "If any step fails, for example because the Anthropic key is no longer valid, an emergency signal starts in a separate workflow.",
+      run: async function (tok) {
+        setScene(this.title, this.text); speak(this.text); resetVisualsKeep();
+        await overview(900, tok); await wait(600, tok);
+        hot("CL", "bad"); callout("CL", "invalid key", "var(--urg)"); sfx("error");
+        await wait(1600, tok); await untilSpoken(tok);
+        await camTo(N.ET.x + 440, N.ET.y - 40, camW(), 1100, tok);
+        await walk(["ET", "FE", "SE"], tok, { color: "var(--urg)", label: "error", title: "When something breaks", count: true });
+      } },
+    { title: "Getting started",
+      text: "That is the whole path. To use it you need n8n always on, a connected Gmail account, an Anthropic key, a Telegram bot and a filled-in Company Profile. The list and the limits are below. Meanwhile, try it yourself: pick an example email.",
+      run: async function (tok) {
+        setScene(this.title, this.text); speak(this.text); resetVisuals(); sfx("done");
+        await overview(1200, tok);
+        $("#need").classList.add("hint"); $("#try").classList.add("hint");
+        await wait(readMs(this.text, 5000), tok); await untilSpoken(tok);
+        $("#need").classList.remove("hint"); $("#try").classList.remove("hint");
+      } }
+  ];
+
+  /* ---------- UI wiring ---------- */
+  var prog = $("#progress");
+  SCENES.forEach(function (s, k) {
+    var b = document.createElement("button");
+    b.className = "seg"; b.type = "button"; b.setAttribute("aria-label", s.title); b.title = s.title;
+    b.innerHTML = "<i></i>";
+    b.addEventListener("click", function () { unlock(); jump(k); });
+    prog.appendChild(b);
+  });
+  function paintProgress() {
+    Array.prototype.forEach.call(prog.children, function (b, k) {
+      b.classList.toggle("now", started && videoActive && k === sceneIdx);
+      b.classList.toggle("done", started && (k < sceneIdx || (!videoActive && k === sceneIdx)));
+    });
+  }
+  function updatePlayBtn() {
+    var playing = started && videoActive && !paused;
+    var label = playing ? "Pause" : (!started ? "Play" : (finished ? "Replay" : "Resume"));
+    $("#playtxt").textContent = label; $("#play").setAttribute("aria-label", label);
+    $("#playicon").innerHTML = playing ? "<path d=\"M8 5v14M16 5v14\"></path>" : "<path d=\"M7 4l13 8-13 8z\"></path>";
+    paintProgress();
+  }
+  var unlocked = false;
+  function unlock() {
+    if (unlocked) return; unlocked = true;
+    ac();                                              // audio must be created inside a click
+    try { if (hasSpeech) { speechSynthesis.cancel(); } } catch (e) {}
+  }
+
+  async function play(from) {
+    var tok = ++runTok; videoActive = true; finished = false; paused = false; started = true;
+    sfx("start");
+    for (var i = from; i < SCENES.length; i++) {
+      if (tok !== runTok) return;
+      sceneIdx = i; resetVisuals(); updatePlayBtn();
+      setScene(SCENES[i].title, SCENES[i].text);
+      try { await SCENES[i].run(tok); await wait(500, tok); }
+      catch (e) { if (e === CANCEL) return; throw e; }
+    }
+    finished = true; paused = true; updatePlayBtn(); stopSpeech();
+  }
+  function jump(k) {
+    stopSpeech(); var wasPaused = started && paused && videoActive && !finished;
+    play(k).then(null, function () {}); paused = wasPaused; updatePlayBtn();
+  }
+
+  $("#play").addEventListener("click", function () {
+    unlock();
+    if (!started || finished) { play(0); return; }
+    if (!videoActive) { play(sceneIdx); return; }
+    paused = !paused;
+    try { if (hasSpeech && voiceOn) { paused ? speechSynthesis.pause() : speechSynthesis.resume(); } } catch (e) {}
+    updatePlayBtn();
+  });
+  $("#next").addEventListener("click", function () { unlock(); jump(Math.min(SCENES.length - 1, sceneIdx + (started && videoActive ? 1 : 0))); });
+  $("#prev").addEventListener("click", function () { unlock(); jump(Math.max(0, sceneIdx - 1)); });
+  $("#speed").addEventListener("change", function (e) { speed = parseFloat(e.target.value) || 1; });
+  var vb = $("#voice"), sb = $("#sound");
+  if (!hasSpeech) { vb.disabled = true; vb.setAttribute("aria-pressed", "false"); voiceOn = false; vb.title = "Your browser cannot read text aloud"; }
+  vb.addEventListener("click", function () {
+    unlock(); voiceOn = !voiceOn; vb.setAttribute("aria-pressed", voiceOn ? "true" : "false");
+    if (voiceOn && started) speak(($("#nodeName").hidden ? "" : $("#nodeName").textContent + ". ") + $("#caption").textContent); else stopSpeech();
+  });
+  sb.addEventListener("click", function () { unlock(); soundOn = !soundOn; sb.setAttribute("aria-pressed", soundOn ? "true" : "false"); if (soundOn) sfx("arrive"); });
+  if (!hasSpeech) $("#audiohint").textContent = "Your browser cannot read text aloud, so the narration is shown as subtitles. Sound effects start when you press Play.";
+
+  // first frame at rest: the whole map is visible and scene 1 text is shown; audio can only start after a click, so it waits for Play
+  applyCam();
+  setScene(SCENES[0].title, SCENES[0].text);
+  updatePlayBtn();
+})();
+</script>
+</body>
+</html>

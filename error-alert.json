@@ -1,0 +1,100 @@
+{
+  "id": "n8n-mail-workflow-error-alert",
+  "name": "N8N Mail WORKFLOW Prototype — Error Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🚨 Error alert\nAttach this workflow to the main one: open **N8N Mail WORKFLOW Prototype → ⋯ → Settings → Error workflow** and pick this workflow. From then on, any failure (invalid Anthropic key, no credit, expired Google login…) sends you a Telegram message instead of failing silently.\nSet the Telegram credential and Chat ID in the last node, then **Publish** this workflow.",
+        "height": 200,
+        "width": 520,
+        "color": 3
+      },
+      "id": "f6d148b5-728d-41a3-8c53-9c7a7c167774",
+      "name": "READ ME",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        -260
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "832770ac-66e6-4a79-b63a-89886ce6edce",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Turns an n8n error into a short message you can read on your phone.\nconst esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst d = $input.item.json;\nconst wf = d.workflow?.name || 'Unknown workflow';\nconst node = d.execution?.lastNodeExecuted || d.trigger?.error?.node?.name || 'unknown step';\nconst msg = d.execution?.error?.message || d.trigger?.error?.message || 'No error message available';\n\nconst text = (\n  '🚨 ' + esc(wf) + ' stopped working\\n' +\n  'Step: ' + esc(node) + '\\n' +\n  'Problem: ' + esc(String(msg).slice(0, 600)) + '\\n\\n' +\n  'Common causes: Anthropic key invalid or out of credit, Google login expired (reconnect the Gmail credential), model name retired.\\n' +\n  (d.execution?.url ? 'Details: ' + esc(d.execution.url) : '')\n).slice(0, 3800);\n\nreturn { json: { text } };\n"
+      },
+      "id": "9c4e7f2a-c428-4149-a4fd-c2caf5d49594",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_ME_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "53397403-cb3f-4741-8e16-44c47cefd90a",
+      "name": "Send Error Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        100,
+        0
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram bot (buyer's own — swap for Slack/Email if preferred)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Send Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
