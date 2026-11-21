@@ -158,6 +158,11 @@ table.sheet th { font-family: var(--font-mono); font-weight: 500; font-size: 11p
 a { color: var(--accent); }
 .getit { margin: 14px 0 0; font-size: 15px; }
 .getit a { font-weight: 600; }
+.shots { display: grid; gap: 16px; }
+.shots figure { margin: 0; display: grid; gap: 8px; }
+.shots img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: #171717; }
+.shots figcaption { font-size: 14px; color: var(--ink-2); max-width: 80ch; }
+.shotgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px 16px; }
 </style>
 </head>
 <body>
@@ -168,6 +173,19 @@ a { color: var(--accent); }
     <p class="lead">This is the real map of the workflow: every box is one step. Press Play and watch a signal travel through them one by one, with narration and sound, in about three minutes. Or pick an example email and follow it yourself.</p>
     <p class="getit"><a href="https://github.com/Ale-Studios/n8n-mail-workflow-prototype">Get the free prototype on GitHub</a> &middot; free to use and change, not to sell &middot; prototype: read the status table in the README before relying on it</p>
   </header>
+
+  <section class="shots" aria-labelledby="shotsh">
+    <h2 id="shotsh">The real workflow, in n8n</h2>
+    <p class="sub">Screenshots of the actual files, taken in n8n right after importing them. Click an image to see it full size.</p>
+    <figure><a href="media/n8n-overview.png"><img src="media/n8n-overview.png" alt="The whole workflow in n8n: Gmail trigger, Company Profile, Claude classification, six roads, morning follow-up and Monday summary"></a><figcaption>The whole workflow: the email flow at the top, the morning follow-up below it and the Monday summary at the bottom.</figcaption></figure>
+    <div class="shotgrid">
+      <figure><a href="media/n8n-email-flow.png"><img src="media/n8n-email-flow.png" alt="The email flow in n8n" loading="lazy"></a><figcaption>The email flow, from the Gmail trigger to the six roads.</figcaption></figure>
+      <figure><a href="media/n8n-follow-up.png"><img src="media/n8n-follow-up.png" alt="The morning follow-up in n8n" loading="lazy"></a><figcaption>The morning follow-up: it drafts a reminder only when nobody answered.</figcaption></figure>
+      <figure><a href="media/n8n-company-profile.png"><img src="media/n8n-company-profile.png" alt="The Company Profile node in n8n" loading="lazy"></a><figcaption>The Company Profile: the one form you fill in.</figcaption></figure>
+      <figure><a href="media/n8n-error-workflow.png"><img src="media/n8n-error-workflow.png" alt="The error workflow in n8n" loading="lazy"></a><figcaption>The error workflow: a Telegram message when any step fails.</figcaption></figure>
+    </div>
+  </section>
+
 
   <section class="player" aria-label="Interactive video">
     <div class="stagewrap">

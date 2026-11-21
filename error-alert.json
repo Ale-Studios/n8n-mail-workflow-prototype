@@ -63,7 +63,7 @@
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_ME",
-          "name": "Telegram bot (buyer's own — swap for Slack/Email if preferred)"
+          "name": "Telegram bot (your own — swap for Slack/Email if preferred)"
         }
       }
     }

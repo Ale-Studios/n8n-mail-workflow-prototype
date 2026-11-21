@@ -9,12 +9,12 @@
       "typeVersion": 1,
       "position": [
         -420,
-        -420
+        -640
       ],
       "parameters": {
-        "content": "## N8N Mail WORKFLOW Prototype\n\n**Rule this workflow never breaks: it drafts, it never sends.**\nEvery reply this workflow writes lands as a Gmail DRAFT. A human always presses Send. Nothing here deletes, sends, or acts on your behalf without you looking at it first.\n\n### What it does\n1. Watches your inbox for new mail\n2. Classifies each email: LEAD / CLIENT QUESTION / INVOICE / URGENT / IGNORE\n3. Drafts a reply for leads & client questions (never sends)\n4. Logs invoices to a tracking sheet\n5. Pings you instantly for anything urgent\n6. Every morning, checks 3+ day old unanswered emails and drafts a follow-up\n7. Every Monday, sends you a digest of what's pending\n\n### Before you run it, set up:\n- Gmail credential (OAuth2) — used to read mail and create drafts\n- An Anthropic API key — set it as the n8n environment variable ANTHROPIC_API_KEY\n- A Google Sheet for invoice tracking (see 'Log Invoice to Sheet' node)\n- A Telegram bot (free, via @BotFather) for the urgent alert + weekly digest — swap for Slack/Email if you prefer\n\nSee SETUP.md in this folder for the full walkthrough.",
-        "height": 480,
-        "width": 460
+        "content": "## N8N Mail WORKFLOW Prototype\n\n**Rule this workflow never breaks: it drafts, it never sends.**\nEvery reply this workflow writes lands as a Gmail DRAFT. A human always presses Send. Nothing here deletes, sends, or acts on your behalf without you looking at it first.\n\n### What it does\n1. Watches your inbox for new mail\n2. Classifies each email: LEAD / CLIENT QUESTION / INVOICE / URGENT / IGNORE\n3. Drafts a reply for leads & client questions (never sends)\n4. Logs invoices to a tracking sheet\n5. Pings you instantly for anything urgent\n6. Every morning, finds emails YOU sent days ago that nobody answered and drafts a reminder\n7. Every Monday, sends you a digest of what's pending\n\n### Before you run it, set up:\n- Gmail credential (OAuth2, needs a free Google Cloud project: see SETUP.md) — used to read mail and create drafts\n- The Company Profile node filled in with your own details\n- An Anthropic API key — add it in n8n as a Header Auth credential (Name: x-api-key) and choose it in the 5 \"(Claude)\" nodes\n- A Google Sheet for invoice tracking (see 'Log Invoice to Sheet' node)\n- A Telegram bot (free, via @BotFather) for the urgent alert + weekly digest — swap for Slack/Email if you prefer\n\nSee SETUP.md in this folder for the full walkthrough.",
+        "height": 600,
+        "width": 480
       }
     },
     {
@@ -42,7 +42,7 @@
       "credentials": {
         "gmailOAuth2": {
           "id": "REPLACE_ME",
-          "name": "Gmail account (buyer's own)"
+          "name": "Gmail account (your own)"
         }
       }
     },
@@ -106,7 +106,7 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "REPLACE_ME",
-          "name": "Anthropic API key (Header Auth, name x-api-key — buyer's own)"
+          "name": "Anthropic API key (Header Auth, name x-api-key — your own)"
         }
       }
     },
@@ -265,7 +265,7 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "REPLACE_ME",
-          "name": "Anthropic API key (Header Auth, name x-api-key — buyer's own)"
+          "name": "Anthropic API key (Header Auth, name x-api-key — your own)"
         }
       }
     },
@@ -291,7 +291,7 @@
       "credentials": {
         "gmailOAuth2": {
           "id": "REPLACE_ME",
-          "name": "Gmail account (buyer's own)"
+          "name": "Gmail account (your own)"
         }
       }
     },
@@ -341,7 +341,7 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "REPLACE_ME",
-          "name": "Anthropic API key (Header Auth, name x-api-key — buyer's own)"
+          "name": "Anthropic API key (Header Auth, name x-api-key — your own)"
         }
       }
     },
@@ -367,7 +367,7 @@
       "credentials": {
         "gmailOAuth2": {
           "id": "REPLACE_ME",
-          "name": "Gmail account (buyer's own)"
+          "name": "Gmail account (your own)"
         }
       }
     },
@@ -417,7 +417,7 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "REPLACE_ME",
-          "name": "Anthropic API key (Header Auth, name x-api-key — buyer's own)"
+          "name": "Anthropic API key (Header Auth, name x-api-key — your own)"
         }
       }
     },
@@ -461,7 +461,7 @@
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_ME",
-          "name": "Google Sheets account (buyer's own)"
+          "name": "Google Sheets account (your own)"
         }
       }
     },
@@ -485,7 +485,7 @@
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_ME",
-          "name": "Telegram bot (buyer's own — swap for Slack/Email if preferred)"
+          "name": "Telegram bot (your own — swap for Slack/Email if preferred)"
         }
       }
     },
@@ -506,13 +506,13 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -420,
-        820
+        -100,
+        770
       ],
       "parameters": {
-        "content": "## Daily Follow-up Check\n\nRuns once a day. Finds emails YOU sent 3+ days ago that never got a reply, and drafts a polite nudge — as a draft, you still hit send.\n\nCustomize the '3 days' threshold and the Gmail search query in 'Search Sent Emails' to fit the buyer's workflow.",
-        "height": 200,
-        "width": 400
+        "content": "## Daily Follow-up Check\n\nRuns once a day. Finds emails YOU sent 3+ days ago that never got a reply, and drafts a polite nudge — as a draft, you still hit send.\n\nChange the number of days in the Company Profile node (follow_up_after_days).",
+        "height": 150,
+        "width": 340
       }
     },
     {
@@ -556,7 +556,7 @@
       "credentials": {
         "gmailOAuth2": {
           "id": "REPLACE_ME",
-          "name": "Gmail account (buyer's own)"
+          "name": "Gmail account (your own)"
         }
       }
     },
@@ -620,7 +620,7 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "REPLACE_ME",
-          "name": "Anthropic API key (Header Auth, name x-api-key — buyer's own)"
+          "name": "Anthropic API key (Header Auth, name x-api-key — your own)"
         }
       }
     },
@@ -646,7 +646,7 @@
       "credentials": {
         "gmailOAuth2": {
           "id": "REPLACE_ME",
-          "name": "Gmail account (buyer's own)"
+          "name": "Gmail account (your own)"
         }
       }
     },
@@ -719,7 +719,7 @@
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_ME",
-          "name": "Google Sheets account (buyer's own)"
+          "name": "Google Sheets account (your own)"
         }
       }
     },
@@ -756,7 +756,7 @@
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_ME",
-          "name": "Telegram bot (buyer's own — swap for Slack/Email if preferred)"
+          "name": "Telegram bot (your own — swap for Slack/Email if preferred)"
         }
       }
     },
@@ -772,7 +772,7 @@
       "parameters": {
         "content": "## 🏢 COMPANY PROFILE — fill this in first\nOpen the **Company Profile** node and replace every REPLACE_ME with your real details (services, prices, hours, FAQ, tone, signature). Claude uses ONLY this information when it drafts replies, so the better you fill it, the better the drafts. Fields left as REPLACE_ME are simply ignored — Claude then leaves [BRACKETED PLACEHOLDERS] instead of guessing.\nYou don't need to touch the other two nodes here.",
         "height": 170,
-        "width": 700
+        "width": 640
       }
     },
     {
@@ -794,13 +794,13 @@
             {
               "id": "0a060a9f-ec8d-4c9e-8c55-2a3acc65a3a3",
               "name": "services_and_prices",
-              "value": "REPLACE_ME — e.g. Website redesign from €1,500; monthly maintenance €120",
+              "value": "REPLACE_ME — e.g. Website redesign from $1,500; monthly maintenance $120",
               "type": "string"
             },
             {
               "id": "a994da62-68a2-4cc2-bed5-921de60d4a6d",
               "name": "working_hours",
-              "value": "REPLACE_ME — e.g. Mon-Fri 9:00-18:00 (Rome time)",
+              "value": "REPLACE_ME — e.g. Mon-Fri 9:00-18:00 (your time zone)",
               "type": "string"
             },
             {
@@ -818,7 +818,7 @@
             {
               "id": "6e268763-d865-465e-9500-0e1a497500fb",
               "name": "tone_of_voice",
-              "value": "REPLACE_ME — e.g. friendly but professional, uses \"tu\" with clients",
+              "value": "REPLACE_ME — e.g. friendly but professional, uses first names with clients",
               "type": "string"
             },
             {
@@ -938,7 +938,7 @@
       "credentials": {
         "gmailOAuth2": {
           "id": "REPLACE_ME",
-          "name": "Gmail account (buyer's own)"
+          "name": "Gmail account (your own)"
         }
       }
     },

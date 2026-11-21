@@ -6,6 +6,10 @@
 
 > **Status: prototype.** It works in our tests, but it has not been used with real mail for weeks, and some parts have never been tested with the real services. Read the [status table](#status) before you rely on it. Always review a draft before you press Send.
 
+![The whole workflow in n8n: Gmail trigger, Company Profile, Claude classification, six roads, morning follow-up and Monday summary](media/n8n-overview.png)
+
+*The whole workflow as it appears in n8n. The interactive map on the website shows a signal travelling through every one of these nodes.*
+
 ## What it does
 
 1. Every minute it checks your Gmail inbox for new unread email (it skips promotions, social notifications and very large messages).
@@ -28,6 +32,26 @@
 
 **The rule that never changes: it only writes drafts.** A person has to read and press Send.
 
+## Screenshots
+
+These are screenshots of the real workflow, taken in n8n right after importing the files.
+
+![The email flow: from the Gmail trigger, through the Company Profile and Claude, to the six roads](media/n8n-email-flow.png)
+
+*The email flow: new email, Company Profile, Claude's classification, and the six roads (drafts, invoice row, Telegram alerts, or nothing).*
+
+![The morning follow-up: it reads whole conversations and drafts a reminder only when nobody answered](media/n8n-follow-up.png)
+
+*The morning follow-up: it searches the emails you sent, reads each whole conversation, and drafts a reminder only when nobody answered.*
+
+![The Company Profile node, a form where you describe your business](media/n8n-company-profile.png)
+
+*The Company Profile node: the one form you fill in. Claude takes the facts about your business only from here.*
+
+![The error workflow: an error trigger, a message formatter and a Telegram alert](media/n8n-error-workflow.png)
+
+*The error workflow (`error-alert.json`): it sends you a Telegram message when any step fails.*
+
 ## What is in this repository
 
 | File | What it is |
@@ -35,6 +59,7 @@
 | `n8n-mail-workflow.json` | The main workflow (29 working nodes) |
 | `error-alert.json` | A small second workflow that warns you when something fails |
 | `SETUP.md` | Step-by-step setup guide |
+| `media/` | The screenshots used in this README and on the website |
 | `index.html` | The interactive map shown on the website |
 | `LICENSE.md` | Free use license: free to use and change, not to sell |
 
